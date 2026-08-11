@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#111827">
 <link rel="manifest" href="manifest.json"><link rel="apple-touch-icon" href="icon.svg">
 <title>Meu Treino V2</title>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
 <style>
 :root{--bg:#f3f4f6;--card:#fff;--text:#111827;--muted:#6b7280;--line:#e5e7eb;--accent:#111827;--green:#15803d;--red:#b91c1c}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
@@ -49,7 +49,7 @@ function saveConfig(){
  config={url:document.getElementById("surl").value.trim(),key:document.getElementById("skey").value.trim()};
  localStorage.setItem("meuTreinoConfig",JSON.stringify(config));init();
 }
-function top(){
+function renderTabs(){
  document.getElementById("top").innerHTML=`<div class="tabs">
  <button class="tab ${tab==="home"?"active":""}" onclick="go('home')">🏠 Início</button>
  <button class="tab ${tab==="treino"?"active":""}" onclick="go('treino')">🏋️ Treino</button>
@@ -59,11 +59,11 @@ function top(){
  <button class="tab ${tab==="config"?"active":""}" onclick="go('config')">⚙️</button></div>`;
 }
 function go(t){tab=t;render()}
-function render(){top();let app=document.getElementById("app");document.getElementById("footer").style.display=tab==="treino"?"flex":"none";if(tab==="home")home(app);else if(tab==="treino")treino(app);else if(tab==="historico")historico(app);else if(tab==="evolucao")evolucao(app);else if(tab==="compartilhar")compartilhar(app);else configPage(app)}
+function render(){renderTabs();let app=document.getElementById("app");document.getElementById("footer").style.display=tab==="treino"?"flex":"none";if(tab==="home")home(app);else if(tab==="treino")treino(app);else if(tab==="historico")historico(app);else if(tab==="evolucao")evolucao(app);else if(tab==="compartilhar")compartilhar(app);else configPage(app)}
 function home(a){a.innerHTML=`<div class="section-title">Olá! 👋</div>
 <div class="card"><div class="title">Seu treino, agora com acesso privado</div><div class="meta">Se você configurar o banco, seus dados podem ser sincronizados e um acesso somente leitura pode ser criado para quem você escolher.</div></div>
 <div class="grid"><div class="stat"><span class="muted">Registros locais</span><b>${data.length}</b></div><div class="stat"><span class="muted">Exercícios</span><b>${new Set(data.map(x=>x.exercise)).size}</b></div></div>
-<div class="card"><div class="title">Começar</div><div class="actions"><button class="btn" onclick="go('treino')">Registrar treino</button><button class="btn secondary" onclick="go('evolucao')">Ver evolução</button></div></div>`}
+<div class="card"><div class="title">Começar</div><div class="actions"><button class="btn" onclick="go('treino')">Registrar treino</button><button class="btn secondary" onclick="go('evolucao')">Ver evolução</button></div></div><div class="card"><div class="title">☁️ Configurar conta e nuvem</div><div class="meta">Na aba ⚙️ Configurações, coloque a Project URL e a Publishable key e depois crie sua conta.</div><button class="setting" onclick="go('config')">⚙️ Abrir Configurações</button></div>`}
 function lastFor(ex){let r=data.filter(x=>x.exercise===ex);return r.length?r[r.length-1]:null}
 function treino(a){let w=workouts[current];let h=`<div class="tabs"><button class="tab ${current==="A"?"active":""}" onclick="current='A';render()">A</button><button class="tab ${current==="B"?"active":""}" onclick="current='B';render()">B</button><button class="tab ${current==="C"?"active":""}" onclick="current='C';render()">C</button></div><div class="section-title">Treino ${current}${w.name?" — "+w.name:""}</div>`;
 w.ex.forEach((e,i)=>{let last=lastFor(e[0]);h+=`<div class="card"><div class="title">${e[0]}</div><div class="meta">Meta: ${e[1]} × ${e[2]}${last?" · Último: "+last.sets.map(s=>s.weight+" kg × "+s.reps).join(" / "):""}</div>`;
@@ -80,9 +80,24 @@ a.innerHTML=`<div class="section-title">🔗 Compartilhar</div><div class="card"
 async function createShare(){let token=crypto.randomUUID();let r=await sb.from("share_tokens").insert({user_id:user.id,token}).select().single();if(r.error)return alert(r.error.message);let url=location.origin+location.pathname+"?share="+token;document.getElementById("shareResult").innerHTML=`<div class="card"><div class="title">Link criado</div><input type="text" value="${url}" readonly><button class="btn" onclick="navigator.clipboard.writeText('${url}');alert('Link copiado!')">Copiar link</button></div>`}
 async function configPage(a){a.innerHTML=`<div class="section-title">⚙️ Configurações</div>
 <div class="card"><div class="title">Conta</div>${user?`<div class="ok">Conectado: ${user.email}</div><button class="setting" onclick="sb.auth.signOut().then(()=>{user=null;render()})">Sair</button>`:`<div class="meta">Entre para sincronizar seus treinos.</div><input id="email" type="email" placeholder="E-mail"><input id="password" type="password" placeholder="Senha"><div class="actions"><button class="btn" onclick="auth('login')">Entrar</button><button class="btn secondary" onclick="auth('signup')">Criar conta</button></div>`}</div>
-<div class="card"><div class="title">Conexão</div><div class="meta">Use as credenciais do seu projeto Supabase.</div><input id="surl" type="text" placeholder="Supabase URL" value="${config.url}"><input id="skey" type="text" placeholder="Supabase anon key" value="${config.key}"><button class="btn" onclick="saveConfig()">Salvar conexão</button></div>
+<div class="card"><div class="title">Conexão</div><div class="meta">Use as credenciais do seu projeto Supabase.</div><input id="surl" type="text" placeholder="Supabase URL" value="${config.url}"><input id="skey" type="text" placeholder="Supabase Publishable key" value="${config.key}"><button class="btn" onclick="saveConfig()">Salvar conexão</button></div>
 <div class="card"><div class="title">Dados locais</div><div class="meta">${data.length} registros neste aparelho.</div><button class="setting" onclick="deleteLocal()">🗑️ Apagar dados locais</button></div>`}
 function deleteLocal(){if(confirm("Apagar os dados locais deste aparelho?")){data=[];localStorage.removeItem("meuTreinoV2");render()}}
 async function shareView(token){document.getElementById("top").innerHTML="";document.getElementById("footer").style.display="none";let app=document.getElementById("app");if(!sb)return app.innerHTML='<div class="notice">A conexão do aplicativo ainda não foi configurada.</div>';let t=await sb.from("share_tokens").select("user_id").eq("token",token).single();if(t.error)return app.innerHTML='<div class="notice">Link inválido ou revogado.</div>';let r=await sb.from("workouts").select("date,workout,exercise,sets").eq("user_id",t.data.user_id).order("date",{ascending:false});if(r.error)return app.innerHTML='<div class="notice">Não foi possível carregar a evolução.</div>';app.innerHTML='<div class="section-title">📊 Evolução compartilhada</div><div class="card"><div class="meta">Acesso somente leitura.</div></div>'+r.data.map(x=>`<div class="card"><div class="title">${x.exercise}</div><div class="meta">${new Date(x.date+"T12:00:00").toLocaleDateString("pt-BR")} · Treino ${x.workout}</div><div class="stat"><span>Carga / repetições</span><b>${x.sets[0].weight||"-"} kg × ${x.sets[0].reps}</b></div></div>`).join("")}
-async function start(){let params=new URLSearchParams(location.search),token=params.get("share");if(config.url&&config.key)try{sb=window.supabase.createClient(config.url,config.key);await refreshUser()}catch(e){}if(token)return shareView(token);render()}start();
+async function start(){
+  let params=new URLSearchParams(location.search),token=params.get("share");
+  render();
+  if(config.url&&config.key){
+    try{
+      if(window.supabase){
+        sb=window.supabase.createClient(config.url,config.key);
+        await refreshUser();
+        render();
+      }
+    }catch(e){ console.error(e); }
+  }
+  if(token && sb) shareView(token);
+}
+if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",start);
+else start();
 </script></body></html>
