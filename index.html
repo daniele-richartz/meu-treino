@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#111827">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon.svg">
+<title>Meu Treino</title>
+<style>
+:root{--bg:#f3f4f6;--card:#fff;--text:#111827;--muted:#6b7280;--line:#e5e7eb;--accent:#111827;--ok:#16a34a}
+*{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+header{background:var(--accent);color:#fff;padding:calc(18px + env(safe-area-inset-top)) 18px 18px;position:sticky;top:0;z-index:5}
+h1{font-size:24px;margin:0 0 4px}.sub{opacity:.75;font-size:13px}
+main{max-width:700px;margin:auto;padding:16px 14px 90px}
+.tabs{display:flex;gap:8px;margin-bottom:14px}.tab{flex:1;padding:11px;border:0;border-radius:12px;background:#e5e7eb;font-weight:700}.tab.active{background:#111827;color:#fff}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:12px;box-shadow:0 2px 8px #00000008}
+.title{font-size:17px;font-weight:800}.meta{font-size:13px;color:var(--muted);margin-top:3px}
+.row{display:grid;grid-template-columns:36px 1fr 1fr 1fr;gap:7px;align-items:center;margin-top:10px}
+.row input{width:100%;padding:11px 7px;border:1px solid var(--line);border-radius:10px;font-size:16px;background:#fff}
+.series{font-weight:700;text-align:center}.label{font-size:11px;color:var(--muted);text-align:center;margin-top:4px}
+.btn{border:0;border-radius:11px;padding:11px 13px;font-weight:800;background:#111827;color:#fff}.btn.secondary{background:#e5e7eb;color:#111827}.btn.ok{background:#dcfce7;color:#166534}
+.actions{display:flex;gap:8px;margin-top:12px}.actions .btn{flex:1}
+.section-title{font-size:20px;font-weight:900;margin:8px 0 12px}
+.empty{padding:30px 10px;text-align:center;color:var(--muted)}
+.stat{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line)}
+small{color:var(--muted)}
+footer{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--line);padding:10px 14px calc(10px + env(safe-area-inset-bottom));display:flex;gap:8px;z-index:6}
+footer button{flex:1}
+@media(min-width:600px){footer{position:static;border:0;background:transparent;padding:0;margin-top:10px}}
+</style>
+</head>
+<body>
+<header><h1>🏋️ Meu Treino</h1><div class="sub">Registro e progressão de cargas</div></header>
+<main>
+<div class="tabs">
+<button class="tab active" onclick="showTab('treino',this)">Treino</button>
+<button class="tab" onclick="showTab('historico',this)">Histórico</button>
+<button class="tab" onclick="showTab('evolucao',this)">Evolução</button>
+</div>
+<div id="app"></div>
+</main>
+<footer>
+<button class="btn secondary" onclick="clearToday()">Limpar treino</button>
+<button class="btn" onclick="saveToday()">💾 Salvar treino</button>
+</footer>
+<script>
+const workouts={
+A:{name:"Quadríceps e Ombro",ex:[
+["Cadeira adutora",3,10,""],["Agachamento livre",3,10,""],["Cadeira extensora",3,10,""],
+["Desenvolvimento máquina/halter",3,10,""],["Elevação lateral",3,10,""]]},
+B:{name:"Superiores",ex:[
+["Puxada alta aberta",3,10,""],["Remada máquina",3,10,""],["Rosca direta polia",3,10,""],
+["Tríceps na polia",3,10,""],["Abdômen supra",3,25,""],["Panturrilha em pé",3,10,""]]},
+C:{name:"",ex:[
+["Cadeira abdutora",3,10,""],["Mesa flexora",3,10,""],["Elevação de quadril",3,10,""],
+["Supino reto máquina",3,10,""],["Voador",3,10,""],["Prancha isométrica",3,30,"s"]]}
+};
+let current='A', tab='treino';
+let data=JSON.parse(localStorage.getItem('meuTreino')||'[]');
+
+function lastFor(ex){
+ const rows=data.filter(x=>x.exercise===ex);
+ return rows.length?rows[rows.length-1]:null;
+}
+function render(){
+ const app=document.getElementById('app');
+ if(tab==='historico'){renderHistory(app);return}
+ if(tab==='evolucao'){renderEvolution(app);return}
+ const w=workouts[current];
+ let html=`<div class="tabs"><button class="tab ${current==='A'?'active':''}" onclick="current='A';render()">A</button><button class="tab ${current==='B'?'active':''}" onclick="current='B';render()">B</button><button class="tab ${current==='C'?'active':''}" onclick="current='C';render()">C</button></div>
+ <div class="section-title">Treino ${current}${w.name?' — '+w.name:''}</div>`;
+ w.ex.forEach((e,i)=>{
+   const last=lastFor(e[0]); const vals=last?last.sets:Array(e[1]).fill(null).map(()=>({weight:"",reps:""}));
+   html+=`<div class="card"><div class="title">${e[0]}</div><div class="meta">Meta: ${e[1]} × ${e[2]}${e[3]?' '+e[3]:''}${last?` · Último: ${last.sets.map(s=>s.weight+'kg × '+s.reps).join(' / ')}`:''}</div>`;
+   for(let s=0;s<e[1];s++){let v=vals[s]||{weight:"",reps:""};html+=`<div class="row"><div class="series">${s+1}</div><input inputmode="decimal" placeholder="kg" value="${v.weight||''}" data-ex="${i}" data-s="${s}" data-k="weight"><input inputmode="numeric" placeholder="reps" value="${v.reps||''}" data-ex="${i}" data-s="${s}" data-k="reps"><div class="series">RIR</div></div>`}
+   html+=`<div class="actions"><button class="btn secondary" onclick="copyLast(${i})">↻ Último</button><button class="btn ok" onclick="markDone(${i})">✓ Concluído</button></div></div>`;
+ });
+ app.innerHTML=html;
+}
+function collect(){
+ return [...document.querySelectorAll('[data-ex]')].reduce((o,el)=>{
+   const i=el.dataset.ex,s=el.dataset.s,k=el.dataset.k;o[i]??=[];o[i][s]??={weight:"",reps:""};o[i][s][k]=el.value;return o;
+ },{});
+}
+function saveToday(){
+ const sets=collect(); const date=new Date().toISOString().slice(0,10);
+ Object.entries(sets).forEach(([i,arr])=>{arr.forEach(s=>{if(s.weight||s.reps)data.push({date,workout:current,exercise:workouts[current].ex[i][0],sets:[s]})})});
+ localStorage.setItem('meuTreino',JSON.stringify(data)); alert('Treino salvo!'); render();
+}
+function clearToday(){if(confirm('Limpar os dados preenchidos neste treino?'))render();}
+function copyLast(i){
+ const last=lastFor(workouts[current].ex[i][0]); if(!last)return alert('Ainda não há histórico deste exercício.');
+ last.sets.forEach((s,n)=>{let w=document.querySelector(`[data-ex="${i}"][data-s="${n}"][data-k="weight"]`),r=document.querySelector(`[data-ex="${i}"][data-s="${n}"][data-k="reps"]`);if(w)w.value=s.weight;if(r)r.value=s.reps});
+}
+function markDone(i){alert(workouts[current].ex[i][0]+' marcado como concluído. Salve o treino no final.')}
+function renderHistory(app){
+ if(!data.length){app.innerHTML='<div class="empty">Nenhum treino salvo ainda.</div>';return}
+ const groups={}; data.forEach(x=>(groups[x.date]??=[]).push(x));
+ app.innerHTML=Object.entries(groups).reverse().map(([d,rows])=>`<div class="card"><div class="title">${new Date(d+'T12:00:00').toLocaleDateString('pt-BR')}</div>${rows.map(x=>`<div class="stat"><span>${x.exercise}</span><small>${x.sets[0].weight} kg × ${x.sets[0].reps}</small></div>`).join('')}</div>`).join('');
+}
+function renderEvolution(app){
+ const by={}; data.forEach(x=>{let r=Number(x.sets[0].reps)||0,w=Number(x.sets[0].weight)||0;by[x.exercise]??=[];by[x.exercise].push({date:x.date,w,r})});
+ let html='<div class="section-title">Evolução</div>';
+ if(!Object.keys(by).length){html+='<div class="empty">Registre alguns treinos para ver sua evolução.</div>'}
+ else Object.entries(by).forEach(([ex,arr])=>{let max=Math.max(...arr.map(x=>x.w));html+=`<div class="card"><div class="title">${ex}</div><div class="stat"><span>Maior carga registrada</span><b>${max} kg</b></div><div class="stat"><span>Último registro</span><small>${arr[arr.length-1].w} kg × ${arr[arr.length-1].r}</small></div></div>`});
+ app.innerHTML=html;
+}
+function showTab(t,btn){tab=t;document.querySelectorAll('.tabs:first-of-type .tab').forEach(x=>x.classList.remove('active'));btn.classList.add('active');render()}
+render();
+</script>
+</body></html>
