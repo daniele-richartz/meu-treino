@@ -1,0 +1,24 @@
+MEU TREINO V2 — CONFIGURAÇÃO
+
+Esta V2 foi preparada para:
+- conta privada;
+- sincronização em nuvem;
+- histórico/evolução;
+- área "Compartilhar";
+- link de acesso somente leitura;
+- dados locais como contingência.
+
+IMPORTANTE:
+A interface está pronta, mas a nuvem precisa de um projeto Supabase para funcionar.
+1. Crie um projeto em https://supabase.com
+2. Abra SQL Editor e execute schema.sql.
+3. Copie Project URL e anon key.
+4. Abra o Meu Treino > Configurações > Conexão e cole os dois valores.
+5. Crie sua conta e entre.
+6. Registre um treino: ele será salvo localmente e, se a configuração estiver correta, na nuvem.
+
+SEGURANÇA:
+Não coloque a service_role key no aplicativo. Use somente a anon key.
+Para produção, o endpoint de "Compartilhar" deve validar o token no servidor/Edge Function e devolver somente os registros autorizados. A V2 inclui a estrutura e a interface para isso, mas não deve ser considerada um sistema de produção até essa etapa de servidor ser configurada.
+
+O nome da função de compartilhamento é simplesmente "Compartilhar".
