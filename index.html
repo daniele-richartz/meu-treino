@@ -102,7 +102,7 @@ function renderTabs(){
 function go(t){tab=t;render()}
 function render(){renderTabs();let app=document.getElementById("app");let footer=document.getElementById("footer");footer.style.display=tab==="treino"?"flex":"none";footer.innerHTML=tab==="treino"?'<button class="btn green" onclick="saveToday()">💾 Salvar treino de hoje</button>':"";if(tab==="home")home(app);else if(tab==="treino")treino(app);else if(tab==="historico")historico(app);else if(tab==="evolucao")evolucao(app);else if(tab==="personal")personalTab(app);else if(tab==="compartilhar")compartilhar(app);else configPage(app)}
 function home(a){a.innerHTML=`<div class="section-title">Bora treinar 👰</div>
-<div class="grid"><div class="stat"><span class="muted">Registros locais</span><b>${data.length}</b></div><div class="stat"><span class="muted">Exercícios</span><b>${new Set(data.map(x=>x.exercise)).size}</b></div></div>
+<div class="grid"><div class="stat"><span class="muted">Dias de treino</span><b>${new Set(data.map(x=>x.date)).size}</b></div><div class="stat"><span class="muted">Exercícios</span><b>${new Set(data.map(x=>x.exercise)).size}</b></div></div>
 <div class="card"><div class="title">Começar</div><div class="actions"><button class="btn" onclick="go('treino')">Registrar treino</button><button class="btn secondary" onclick="go('evolucao')">Ver evolução</button></div></div>`}
 function lastFor(ex){let r=data.filter(x=>x.exercise===ex);return r.length?r[r.length-1]:null}
 function treino(a){let w=workouts[current];if(!w){current=dayOrder[0];w=workouts[current]}
@@ -121,7 +121,7 @@ function historico(a){if(!data.length)return a.innerHTML='<div class="empty">Nen
 function evolucao(a){let by={};data.forEach(x=>{let w=Number(x.sets[0].weight)||0;by[x.exercise]??=[];by[x.exercise].push({w,r:x.sets[0].reps})});let h='<div class="section-title">Evolução</div>';if(!Object.keys(by).length)h+='<div class="empty">Registre treinos para acompanhar sua evolução.</div>';else Object.entries(by).forEach(([e,v])=>{let max=Math.max(...v.map(x=>x.w));h+=`<div class="card"><div class="title">${e}</div><div class="grid"><div class="stat"><span class="muted">Maior carga</span><b>${max} kg</b></div><div class="stat"><span class="muted">Último</span><b>${v[v.length-1].w} kg</b></div></div></div>`});a.innerHTML=h}
 
 function personalTab(a){
-let h='<div class="section-title">🧑‍🏫 Espaço do personal</div><div class="card"><div class="meta">Edite os exercícios de cada treino, renomeie ou remova dias, e adicione novos treinos além de A/B/C. Gere um link para o personal em 🔗 Compartilhar caso ele prefira editar direto pelo celular dele.</div></div>';
+let h='<div class="section-title">🧑‍🏫 Espaço do personal</div><div class="card"><div class="meta">Rafa, mude aqui os exercícios. Dá para editar os treinos já existentes e adicionar novos também (A/B/C) - se quiser que eu adicione mais alguma função, me fale que eu faço : )</div></div>';
 dayOrder.forEach(day=>{
  let w=workouts[day];
  h+=`<div class="card"><div class="title" style="display:flex;justify-content:space-between;align-items:center">Treino ${day}${w.name?" — "+w.name:""}<button class="btn secondary" style="padding:5px 9px;font-size:12px" onclick="renameWorkoutDay('${day}')">✎ nome</button></div>`;
