@@ -26,7 +26,7 @@ footer{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px sol
 @media(min-width:600px){footer{position:static;background:transparent;border:0;padding:0;margin-top:10px}}
 </style></head>
 <body>
-<header><h1>🏋️ Meu Treino</h1><div class="sub">V2 · Registro, evolução e acesso privado</div></header>
+<header><h1>🏋️‍♀️ Meu Treino</h1><div class="sub">Evolução da Danizinha</div></header>
 <main><div id="top"></div><div id="app"></div></main><footer id="footer" style="display:none"></footer>
 <script>
 const DEFAULT_WORKOUTS={
@@ -92,7 +92,7 @@ function saveConfig(){
 function renderTabs(){
  document.getElementById("top").innerHTML=`<div class="tabs">
  <button class="tab ${tab==="home"?"active":""}" onclick="go('home')">🏠 Início</button>
- <button class="tab ${tab==="treino"?"active":""}" onclick="go('treino')">🏋️ Treino</button>
+ <button class="tab ${tab==="treino"?"active":""}" onclick="go('treino')">🏋️‍♀️ Treino</button>
  <button class="tab ${tab==="historico"?"active":""}" onclick="go('historico')">Histórico</button>
  <button class="tab ${tab==="evolucao"?"active":""}" onclick="go('evolucao')">Evolução</button>
  <button class="tab ${tab==="personal"?"active":""}" onclick="go('personal')">🧑‍🏫 Personal</button>
@@ -101,10 +101,9 @@ function renderTabs(){
 }
 function go(t){tab=t;render()}
 function render(){renderTabs();let app=document.getElementById("app");let footer=document.getElementById("footer");footer.style.display=tab==="treino"?"flex":"none";footer.innerHTML=tab==="treino"?'<button class="btn green" onclick="saveToday()">💾 Salvar treino de hoje</button>':"";if(tab==="home")home(app);else if(tab==="treino")treino(app);else if(tab==="historico")historico(app);else if(tab==="evolucao")evolucao(app);else if(tab==="personal")personalTab(app);else if(tab==="compartilhar")compartilhar(app);else configPage(app)}
-function home(a){a.innerHTML=`<div class="section-title">Olá! 👋</div>
-<div class="card"><div class="title">Seu treino, agora com acesso privado</div><div class="meta">Se você configurar o banco, seus dados podem ser sincronizados e um acesso pode ser criado para o seu personal.</div></div>
+function home(a){a.innerHTML=`<div class="section-title">Bora treinar 👰</div>
 <div class="grid"><div class="stat"><span class="muted">Registros locais</span><b>${data.length}</b></div><div class="stat"><span class="muted">Exercícios</span><b>${new Set(data.map(x=>x.exercise)).size}</b></div></div>
-<div class="card"><div class="title">Começar</div><div class="actions"><button class="btn" onclick="go('treino')">Registrar treino</button><button class="btn secondary" onclick="go('evolucao')">Ver evolução</button></div></div><div class="card"><div class="title">☁️ Configurar conta e nuvem</div><div class="meta">Na aba ⚙️ Configurações, coloque a Project URL e a Publishable key e depois crie sua conta.</div><button class="setting" onclick="go('config')">⚙️ Abrir Configurações</button></div>`}
+<div class="card"><div class="title">Começar</div><div class="actions"><button class="btn" onclick="go('treino')">Registrar treino</button><button class="btn secondary" onclick="go('evolucao')">Ver evolução</button></div></div>`}
 function lastFor(ex){let r=data.filter(x=>x.exercise===ex);return r.length?r[r.length-1]:null}
 function treino(a){let w=workouts[current];if(!w){current=dayOrder[0];w=workouts[current]}
 let h=`<div class="tabs">${dayOrder.map(d=>`<button class="tab ${current===d?"active":""}" onclick="current='${d}';render()">${d}</button>`).join("")}</div><div class="section-title">Treino ${current}${w.name?" — "+w.name:""}</div>`;
@@ -118,7 +117,7 @@ function collect(){let o={};document.querySelectorAll("[data-ex]").forEach(el=>{
 async function saveToday(){let sets=collect(),date=new Date().toISOString().slice(0,10),rows=[];Object.entries(sets).forEach(([i,arr])=>arr.forEach(s=>{if(s.weight||s.reps)rows.push({date,workout:current,exercise:workouts[current].ex[i][0],sets:[s]})}));if(!rows.length)return alert("Preencha pelo menos uma série.");
 data.push(...rows);localStorage.setItem("meuTreinoV2",JSON.stringify(data));if(sb&&user){let r=await sb.from("workouts").insert(rows.map(x=>({user_id:user.id,date:x.date,workout:x.workout,exercise:x.exercise,sets:x.sets})));if(r.error)alert("Salvo no aparelho, mas não sincronizado: "+r.error.message);else alert("Treino salvo e sincronizado!")}else alert("Treino salvo neste aparelho.");render()}
 function copyLast(i){let l=lastFor(workouts[current].ex[i][0]);if(!l)return alert("Ainda não há histórico.");l.sets.forEach((s,n)=>{let w=document.querySelector(`[data-ex="${i}"][data-s="${n}"][data-k="weight"]`),r=document.querySelector(`[data-ex="${i}"][data-s="${n}"][data-k="reps"]`);if(w)w.value=s.weight;if(r)r.value=s.reps})}
-function historico(a){if(!data.length)return a.innerHTML='<div class="empty">Nenhum treino salvo.</div>';let g={};data.forEach(x=>(g[x.date]??=[]).push(x));a.innerHTML=Object.entries(g).reverse().map(([d,r])=>`<div class="card"><div class="title">${new Date(d+"T12:00:00").toLocaleDateString("pt-BR")}</div>${r.map(x=>`<div class="stat"><span>${x.exercise}</span><small>${x.sets[0].weight||"-"} kg × ${x.sets[0].reps}</small></div>`).join("")}</div>`).join("")}
+function historico(a){if(!data.length)return a.innerHTML='<div class="empty">Nenhum treino salvo.</div>';let g={};data.forEach(x=>(g[x.date]??=[]).push(x));a.innerHTML=Object.entries(g).reverse().map(([d,r])=>`<div class="card"><div class="title">${new Date(d+"T12:00:00").toLocaleDateString("pt-BR")}</div>${r.map(x=>`<div class="stat" style="display:flex;justify-content:space-between;align-items:center;gap:10px"><span>${x.exercise}</span><small>${x.sets[0].weight||"-"} kg × ${x.sets[0].reps}</small></div>`).join("")}</div>`).join("")}
 function evolucao(a){let by={};data.forEach(x=>{let w=Number(x.sets[0].weight)||0;by[x.exercise]??=[];by[x.exercise].push({w,r:x.sets[0].reps})});let h='<div class="section-title">Evolução</div>';if(!Object.keys(by).length)h+='<div class="empty">Registre treinos para acompanhar sua evolução.</div>';else Object.entries(by).forEach(([e,v])=>{let max=Math.max(...v.map(x=>x.w));h+=`<div class="card"><div class="title">${e}</div><div class="grid"><div class="stat"><span class="muted">Maior carga</span><b>${max} kg</b></div><div class="stat"><span class="muted">Último</span><b>${v[v.length-1].w} kg</b></div></div></div>`});a.innerHTML=h}
 
 function personalTab(a){
