@@ -59,7 +59,7 @@ function renderTabs(){
  <button class="tab ${tab==="config"?"active":""}" onclick="go('config')">⚙️</button></div>`;
 }
 function go(t){tab=t;render()}
-function render(){renderTabs();let app=document.getElementById("app");document.getElementById("footer").style.display=tab==="treino"?"flex":"none";if(tab==="home")home(app);else if(tab==="treino")treino(app);else if(tab==="historico")historico(app);else if(tab==="evolucao")evolucao(app);else if(tab==="compartilhar")compartilhar(app);else configPage(app)}
+function render(){renderTabs();let app=document.getElementById("app");let footer=document.getElementById("footer");footer.style.display=tab==="treino"?"flex":"none";footer.innerHTML=tab==="treino"?'<button class="btn green" onclick="saveToday()">💾 Salvar treino de hoje</button>':"";if(tab==="home")home(app);else if(tab==="treino")treino(app);else if(tab==="historico")historico(app);else if(tab==="evolucao")evolucao(app);else if(tab==="compartilhar")compartilhar(app);else configPage(app)}
 function home(a){a.innerHTML=`<div class="section-title">Olá! 👋</div>
 <div class="card"><div class="title">Seu treino, agora com acesso privado</div><div class="meta">Se você configurar o banco, seus dados podem ser sincronizados e um acesso somente leitura pode ser criado para quem você escolher.</div></div>
 <div class="grid"><div class="stat"><span class="muted">Registros locais</span><b>${data.length}</b></div><div class="stat"><span class="muted">Exercícios</span><b>${new Set(data.map(x=>x.exercise)).size}</b></div></div>
