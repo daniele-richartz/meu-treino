@@ -9,3 +9,16 @@ Para conectar:
 4. Criar conta
 
 Nunca coloque uma Secret key no aplicativo.
+
+===========================================
+NOVO: Espaço do personal (editar treinos)
+===========================================
+1. Abra o schema.sql e copie o CONTEÚDO INTEIRO do arquivo (agora é seguro
+   rodar tudo de novo, mesmo que você já tenha criado as tabelas antes —
+   nada é duplicado nem apagado).
+2. No Supabase: Project > SQL Editor > New query, cole e rode ("Run").
+3. No app, aba 🧑‍🏫 Personal: edite exercícios, renomeie treinos, adicione
+   novos treinos (D, E...) ou remova algum.
+4. Aba 🔗 Compartilhar: gere o link e mande pro seu personal. Ele abre o link,
+   toca em "🧑‍🏫 Editar treinos" e consegue mudar o plano sem precisar de conta.
+   As mudanças dele chegam no seu app na próxima vez que você abrir.

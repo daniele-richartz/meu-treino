@@ -21,6 +21,7 @@ main{max-width:720px;margin:auto;padding:14px 14px 90px}.tabs{display:flex;gap:7
 input[type=email],input[type=password],input[type=text]{width:100%;padding:13px;border:1px solid var(--line);border-radius:11px;font-size:16px;margin:6px 0 10px}
 .notice{padding:12px;border-radius:12px;background:#fef3c7;color:#92400e;font-size:13px;margin-bottom:12px}.ok{padding:12px;border-radius:12px;background:#dcfce7;color:#166534;font-size:13px}
 .empty{text-align:center;color:var(--muted);padding:28px 8px}.divider{height:1px;background:var(--line);margin:14px 0}
+.section-title{font-weight:850;font-size:19px;margin:6px 0 10px}
 footer{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--line);padding:9px 14px calc(9px + env(safe-area-inset-bottom));display:flex;gap:8px;z-index:6}footer>*{flex:1}
 @media(min-width:600px){footer{position:static;background:transparent;border:0;padding:0;margin-top:10px}}
 </style></head>
@@ -32,15 +33,45 @@ const DEFAULT_WORKOUTS={
 A:{name:"Quadríceps e Ombro",ex:[["Cadeira adutora",3,10],["Agachamento livre",3,10],["Cadeira extensora",3,10],["Desenvolvimento máquina/halter",3,10],["Elevação lateral",3,10]]},
 B:{name:"Superiores",ex:[["Puxada alta aberta",3,10],["Remada máquina",3,10],["Rosca direta polia",3,10],["Tríceps na polia",3,10],["Abdômen supra",3,25],["Panturrilha em pé",3,10]]},
 C:{name:"",ex:[["Cadeira abdutora",3,10],["Mesa flexora",3,10],["Elevação de quadril",3,10],["Supino reto máquina",3,10],["Voador",3,10],["Prancha isométrica",3,30]]}};
+const DEFAULT_DAY_ORDER=["A","B","C"];
+
 let workouts=JSON.parse(localStorage.getItem("meuTreinoWorkouts")||"null")||JSON.parse(JSON.stringify(DEFAULT_WORKOUTS));
-function saveWorkouts(){localStorage.setItem("meuTreinoWorkouts",JSON.stringify(workouts))}
-function editExercise(i){let e=workouts[current].ex[i];let name=prompt("Nome do exercício:",e[0]);if(name===null)return;name=name.trim();if(!name)return;let sets=prompt("Número de séries:",e[1]);if(sets===null)return;let reps=prompt(e[0].toLowerCase().includes("prancha")?"Segundos:":"Repetições:",e[2]);if(reps===null)return;workouts[current].ex[i]=[name,Number(sets)||e[1],Number(reps)||e[2]];saveWorkouts();render()}
-function removeExercise(i){if(!confirm("Remover \""+workouts[current].ex[i][0]+"\" do Treino "+current+"?"))return;workouts[current].ex.splice(i,1);saveWorkouts();render()}
-function addExercise(){let name=prompt("Nome do novo exercício:");if(!name)return;let sets=Number(prompt("Número de séries:","3"))||3;let reps=Number(prompt("Repetições (ou segundos):","10"))||10;workouts[current].ex.push([name.trim(),sets,reps]);saveWorkouts();render()}
-function resetWorkouts(){if(!confirm("Restaurar os treinos A/B/C para o padrão original? Seu histórico salvo não será apagado."))return;workouts=JSON.parse(JSON.stringify(DEFAULT_WORKOUTS));saveWorkouts();render()}
-let current="A", tab="home", data=JSON.parse(localStorage.getItem("meuTreinoV2")||"[]");
+let dayOrder=JSON.parse(localStorage.getItem("meuTreinoDayOrder")||"null")||DEFAULT_DAY_ORDER.slice();
+let current=dayOrder[0]||"A", tab="home", data=JSON.parse(localStorage.getItem("meuTreinoV2")||"[]");
 let config=JSON.parse(localStorage.getItem("meuTreinoConfig")||'{"url":"","key":""}');
 let sb=null, user=null;
+
+// share (trainer) view state
+let shareToken=null, shareSubTab="evolucao", sharedWorkouts=null, sharedDayOrder=null, sharedHistory=[];
+
+function persistPlan(){
+  localStorage.setItem("meuTreinoWorkouts",JSON.stringify(workouts));
+  localStorage.setItem("meuTreinoDayOrder",JSON.stringify(dayOrder));
+  if(sb&&user){
+    sb.from("plans").upsert({user_id:user.id,workouts,day_order:dayOrder,updated_at:new Date().toISOString()}).then(r=>{if(r.error)console.error("Falha ao sincronizar plano:",r.error.message)});
+  }
+}
+async function syncPlanFromRemote(){
+  if(!sb||!user)return;
+  let r=await sb.from("plans").select("workouts,day_order").eq("user_id",user.id).maybeSingle();
+  if(r.error)return;
+  if(r.data&&r.data.workouts){
+    workouts=r.data.workouts;
+    dayOrder=(r.data.day_order&&r.data.day_order.length)?r.data.day_order:Object.keys(workouts);
+    localStorage.setItem("meuTreinoWorkouts",JSON.stringify(workouts));
+    localStorage.setItem("meuTreinoDayOrder",JSON.stringify(dayOrder));
+  }else{
+    persistPlan();
+  }
+}
+
+function editExercise(day,i){let e=workouts[day].ex[i];let name=prompt("Nome do exercício:",e[0]);if(name===null)return;name=name.trim();if(!name)return;let sets=prompt("Número de séries:",e[1]);if(sets===null)return;let reps=prompt(e[0].toLowerCase().includes("prancha")?"Segundos:":"Repetições:",e[2]);if(reps===null)return;workouts[day].ex[i]=[name,Number(sets)||e[1],Number(reps)||e[2]];persistPlan();render()}
+function removeExercise(day,i){if(!confirm("Remover \""+workouts[day].ex[i][0]+"\" do Treino "+day+"?"))return;workouts[day].ex.splice(i,1);persistPlan();render()}
+function addExercise(day){let name=prompt("Nome do novo exercício:");if(!name)return;let sets=Number(prompt("Número de séries:","3"))||3;let reps=Number(prompt("Repetições (ou segundos):","10"))||10;workouts[day].ex.push([name.trim(),sets,reps]);persistPlan();render()}
+function addWorkoutDay(){let letter=prompt("Identificador do novo treino (ex: D):","");if(!letter)return;letter=letter.trim().toUpperCase();if(workouts[letter])return alert("Já existe um treino com esse identificador.");let name=prompt("Nome do treino (opcional):","")||"";workouts[letter]={name,ex:[]};dayOrder.push(letter);current=letter;persistPlan();render()}
+function renameWorkoutDay(day){let name=prompt("Nome do Treino "+day+":",workouts[day].name||"");if(name===null)return;workouts[day].name=name.trim();persistPlan();render()}
+function removeWorkoutDay(day){if(dayOrder.length<=1)return alert("Você precisa manter ao menos um treino.");if(!confirm("Remover o Treino "+day+" inteiro? Isso não apaga o histórico já salvo, só o modelo do treino."))return;delete workouts[day];dayOrder=dayOrder.filter(d=>d!==day);if(current===day)current=dayOrder[0];persistPlan();render()}
+function resetWorkouts(){if(!confirm("Restaurar os treinos A/B/C para o padrão original? Seu histórico salvo não será apagado."))return;workouts=JSON.parse(JSON.stringify(DEFAULT_WORKOUTS));dayOrder=DEFAULT_DAY_ORDER.slice();current=dayOrder[0];persistPlan();render()}
 
 function init(){if(config.url&&config.key){try{sb=window.supabase.createClient(config.url,config.key)}catch(e){sb=null}};render()}
 async function refreshUser(){if(!sb)return;let r=await sb.auth.getUser();user=r.data.user||null}
@@ -49,7 +80,10 @@ async function auth(mode){
  const email=document.getElementById("email").value.trim(),password=document.getElementById("password").value;
  if(!email||!password)return alert("Informe e-mail e senha.");
  let r=mode==="login"?await sb.auth.signInWithPassword({email,password}):await sb.auth.signUp({email,password});
- if(r.error)return alert(r.error.message);await refreshUser();render();
+ if(r.error)return alert(r.error.message);
+ await refreshUser();
+ await syncPlanFromRemote();
+ render();
 }
 function saveConfig(){
  config={url:document.getElementById("surl").value.trim(),key:document.getElementById("skey").value.trim()};
@@ -61,21 +95,24 @@ function renderTabs(){
  <button class="tab ${tab==="treino"?"active":""}" onclick="go('treino')">🏋️ Treino</button>
  <button class="tab ${tab==="historico"?"active":""}" onclick="go('historico')">Histórico</button>
  <button class="tab ${tab==="evolucao"?"active":""}" onclick="go('evolucao')">Evolução</button>
+ <button class="tab ${tab==="personal"?"active":""}" onclick="go('personal')">🧑‍🏫 Personal</button>
  <button class="tab ${tab==="compartilhar"?"active":""}" onclick="go('compartilhar')">🔗 Compartilhar</button>
  <button class="tab ${tab==="config"?"active":""}" onclick="go('config')">⚙️</button></div>`;
 }
 function go(t){tab=t;render()}
-function render(){renderTabs();let app=document.getElementById("app");let footer=document.getElementById("footer");footer.style.display=tab==="treino"?"flex":"none";footer.innerHTML=tab==="treino"?'<button class="btn green" onclick="saveToday()">💾 Salvar treino de hoje</button>':"";if(tab==="home")home(app);else if(tab==="treino")treino(app);else if(tab==="historico")historico(app);else if(tab==="evolucao")evolucao(app);else if(tab==="compartilhar")compartilhar(app);else configPage(app)}
+function render(){renderTabs();let app=document.getElementById("app");let footer=document.getElementById("footer");footer.style.display=tab==="treino"?"flex":"none";footer.innerHTML=tab==="treino"?'<button class="btn green" onclick="saveToday()">💾 Salvar treino de hoje</button>':"";if(tab==="home")home(app);else if(tab==="treino")treino(app);else if(tab==="historico")historico(app);else if(tab==="evolucao")evolucao(app);else if(tab==="personal")personalTab(app);else if(tab==="compartilhar")compartilhar(app);else configPage(app)}
 function home(a){a.innerHTML=`<div class="section-title">Olá! 👋</div>
-<div class="card"><div class="title">Seu treino, agora com acesso privado</div><div class="meta">Se você configurar o banco, seus dados podem ser sincronizados e um acesso somente leitura pode ser criado para quem você escolher.</div></div>
+<div class="card"><div class="title">Seu treino, agora com acesso privado</div><div class="meta">Se você configurar o banco, seus dados podem ser sincronizados e um acesso pode ser criado para o seu personal.</div></div>
 <div class="grid"><div class="stat"><span class="muted">Registros locais</span><b>${data.length}</b></div><div class="stat"><span class="muted">Exercícios</span><b>${new Set(data.map(x=>x.exercise)).size}</b></div></div>
 <div class="card"><div class="title">Começar</div><div class="actions"><button class="btn" onclick="go('treino')">Registrar treino</button><button class="btn secondary" onclick="go('evolucao')">Ver evolução</button></div></div><div class="card"><div class="title">☁️ Configurar conta e nuvem</div><div class="meta">Na aba ⚙️ Configurações, coloque a Project URL e a Publishable key e depois crie sua conta.</div><button class="setting" onclick="go('config')">⚙️ Abrir Configurações</button></div>`}
 function lastFor(ex){let r=data.filter(x=>x.exercise===ex);return r.length?r[r.length-1]:null}
-function treino(a){let w=workouts[current];let h=`<div class="tabs"><button class="tab ${current==="A"?"active":""}" onclick="current='A';render()">A</button><button class="tab ${current==="B"?"active":""}" onclick="current='B';render()">B</button><button class="tab ${current==="C"?"active":""}" onclick="current='C';render()">C</button></div><div class="section-title">Treino ${current}${w.name?" — "+w.name:""}</div>`;
-w.ex.forEach((e,i)=>{let last=lastFor(e[0]);h+=`<div class="card"><div class="title" style="display:flex;justify-content:space-between;align-items:center">${e[0]}<button class="btn secondary" style="padding:5px 9px;font-size:12px;font-weight:700" onclick="editExercise(${i})">✎ trocar</button></div><div class="meta">Meta: ${e[1]} × ${e[2]}${last?" · Último: "+last.sets.map(s=>s.weight+" kg × "+s.reps).join(" / "):""}</div>`;
+function treino(a){let w=workouts[current];if(!w){current=dayOrder[0];w=workouts[current]}
+let h=`<div class="tabs">${dayOrder.map(d=>`<button class="tab ${current===d?"active":""}" onclick="current='${d}';render()">${d}</button>`).join("")}</div><div class="section-title">Treino ${current}${w.name?" — "+w.name:""}</div>`;
+if(!w.ex.length)h+='<div class="empty">Nenhum exercício neste treino ainda. Adicione abaixo ou edite em 🧑‍🏫 Personal.</div>';
+w.ex.forEach((e,i)=>{let last=lastFor(e[0]);h+=`<div class="card"><div class="title" style="display:flex;justify-content:space-between;align-items:center">${e[0]}<button class="btn secondary" style="padding:5px 9px;font-size:12px;font-weight:700" onclick="editExercise('${current}',${i})">✎ trocar</button></div><div class="meta">Meta: ${e[1]} × ${e[2]}${last?" · Último: "+last.sets.map(s=>s.weight+" kg × "+s.reps).join(" / "):""}</div>`;
 for(let s=0;s<e[1];s++)h+=`<div class="row"><div class="series">${s+1}</div><input inputmode="decimal" placeholder="kg" data-ex="${i}" data-s="${s}" data-k="weight"><input inputmode="numeric" placeholder="${e[0].toLowerCase().includes("prancha")?"segundos":"reps"}" data-ex="${i}" data-s="${s}" data-k="reps"></div>`;
-h+=`<div class="actions"><button class="btn secondary" onclick="copyLast(${i})">↻ Último</button><button class="btn red" onclick="removeExercise(${i})">🗑 Remover</button></div></div>`});
-h+=`<div class="card"><button class="setting" onclick="addExercise()">+ Adicionar exercício ao Treino ${current}</button></div>`;
+h+=`<div class="actions"><button class="btn secondary" onclick="copyLast(${i})">↻ Último</button><button class="btn red" onclick="removeExercise('${current}',${i})">🗑 Remover</button></div></div>`});
+h+=`<div class="card"><button class="setting" onclick="addExercise('${current}')">+ Adicionar exercício ao Treino ${current}</button></div>`;
 a.innerHTML=h}
 function collect(){let o={};document.querySelectorAll("[data-ex]").forEach(el=>{let i=el.dataset.ex,s=el.dataset.s,k=el.dataset.k;o[i]??=[];o[i][s]??={weight:"",reps:""};o[i][s][k]=el.value});return o}
 async function saveToday(){let sets=collect(),date=new Date().toISOString().slice(0,10),rows=[];Object.entries(sets).forEach(([i,arr])=>arr.forEach(s=>{if(s.weight||s.reps)rows.push({date,workout:current,exercise:workouts[current].ex[i][0],sets:[s]})}));if(!rows.length)return alert("Preencha pelo menos uma série.");
@@ -83,16 +120,80 @@ data.push(...rows);localStorage.setItem("meuTreinoV2",JSON.stringify(data));if(s
 function copyLast(i){let l=lastFor(workouts[current].ex[i][0]);if(!l)return alert("Ainda não há histórico.");l.sets.forEach((s,n)=>{let w=document.querySelector(`[data-ex="${i}"][data-s="${n}"][data-k="weight"]`),r=document.querySelector(`[data-ex="${i}"][data-s="${n}"][data-k="reps"]`);if(w)w.value=s.weight;if(r)r.value=s.reps})}
 function historico(a){if(!data.length)return a.innerHTML='<div class="empty">Nenhum treino salvo.</div>';let g={};data.forEach(x=>(g[x.date]??=[]).push(x));a.innerHTML=Object.entries(g).reverse().map(([d,r])=>`<div class="card"><div class="title">${new Date(d+"T12:00:00").toLocaleDateString("pt-BR")}</div>${r.map(x=>`<div class="stat"><span>${x.exercise}</span><small>${x.sets[0].weight||"-"} kg × ${x.sets[0].reps}</small></div>`).join("")}</div>`).join("")}
 function evolucao(a){let by={};data.forEach(x=>{let w=Number(x.sets[0].weight)||0;by[x.exercise]??=[];by[x.exercise].push({w,r:x.sets[0].reps})});let h='<div class="section-title">Evolução</div>';if(!Object.keys(by).length)h+='<div class="empty">Registre treinos para acompanhar sua evolução.</div>';else Object.entries(by).forEach(([e,v])=>{let max=Math.max(...v.map(x=>x.w));h+=`<div class="card"><div class="title">${e}</div><div class="grid"><div class="stat"><span class="muted">Maior carga</span><b>${max} kg</b></div><div class="stat"><span class="muted">Último</span><b>${v[v.length-1].w} kg</b></div></div></div>`});a.innerHTML=h}
-async function compartilhar(a){if(!sb||!user)return a.innerHTML=`<div class="notice">Para gerar um acesso privado, configure o banco e entre na sua conta.</div><div class="card"><div class="title">🔗 Compartilhar</div><div class="meta">O acesso será somente leitura. Seus treinos não ficam públicos.</div></div>`;
-a.innerHTML=`<div class="section-title">🔗 Compartilhar</div><div class="card"><div class="title">Criar acesso</div><div class="meta">Gere um link somente leitura para sua evolução.</div><button class="btn green" onclick="createShare()">Gerar link</button></div><div id="shareResult"></div>`}
+
+function personalTab(a){
+let h='<div class="section-title">🧑‍🏫 Espaço do personal</div><div class="card"><div class="meta">Edite os exercícios de cada treino, renomeie ou remova dias, e adicione novos treinos além de A/B/C. Gere um link para o personal em 🔗 Compartilhar caso ele prefira editar direto pelo celular dele.</div></div>';
+dayOrder.forEach(day=>{
+ let w=workouts[day];
+ h+=`<div class="card"><div class="title" style="display:flex;justify-content:space-between;align-items:center">Treino ${day}${w.name?" — "+w.name:""}<button class="btn secondary" style="padding:5px 9px;font-size:12px" onclick="renameWorkoutDay('${day}')">✎ nome</button></div>`;
+ if(!w.ex.length)h+='<div class="meta">Nenhum exercício ainda.</div>';
+ w.ex.forEach((e,i)=>{h+=`<div class="row" style="grid-template-columns:1fr auto auto"><div>${e[0]} <span class="muted">(${e[1]}x${e[2]})</span></div><button class="btn secondary" style="padding:5px 9px;font-size:12px" onclick="editExercise('${day}',${i})">✎</button><button class="btn red" style="padding:5px 9px;font-size:12px" onclick="removeExercise('${day}',${i})">🗑</button></div>`});
+ h+=`<div class="actions"><button class="btn secondary" onclick="addExercise('${day}')">+ Exercício</button><button class="btn red" onclick="removeWorkoutDay('${day}')">🗑 Remover treino</button></div></div>`;
+});
+h+='<div class="card"><button class="setting" onclick="addWorkoutDay()">+ Adicionar novo treino (D, E...)</button></div>';
+h+='<div class="card"><button class="setting" onclick="resetWorkouts()">🔄 Restaurar treinos A/B/C padrão</button></div>';
+a.innerHTML=h;
+}
+
+async function compartilhar(a){if(!sb||!user)return a.innerHTML=`<div class="notice">Para gerar um acesso, configure o banco e entre na sua conta.</div><div class="card"><div class="title">🔗 Compartilhar</div><div class="meta">O link permite ver a evolução e, se você quiser, editar o plano de treino — ótimo para o seu personal.</div></div>`;
+a.innerHTML=`<div class="section-title">🔗 Compartilhar</div><div class="card"><div class="title">Criar acesso do personal</div><div class="meta">Gere um link para o seu personal: ele consegue ver sua evolução e editar os treinos (trocar exercícios, adicionar novos dias), sem precisar de conta.</div><button class="btn green" onclick="createShare()">Gerar link</button></div><div id="shareResult"></div>`}
 async function createShare(){let token=crypto.randomUUID();let r=await sb.from("share_tokens").insert({user_id:user.id,token}).select().single();if(r.error)return alert(r.error.message);let url=location.origin+location.pathname+"?share="+token;document.getElementById("shareResult").innerHTML=`<div class="card"><div class="title">Link criado</div><input type="text" value="${url}" readonly><button class="btn" onclick="navigator.clipboard.writeText('${url}');alert('Link copiado!')">Copiar link</button></div>`}
+
 async function configPage(a){a.innerHTML=`<div class="section-title">⚙️ Configurações</div>
 <div class="card"><div class="title">Conta</div>${user?`<div class="ok">Conectado: ${user.email}</div><button class="setting" onclick="sb.auth.signOut().then(()=>{user=null;render()})">Sair</button>`:`<div class="meta">Entre para sincronizar seus treinos.</div><input id="email" type="email" placeholder="E-mail"><input id="password" type="password" placeholder="Senha"><div class="actions"><button class="btn" onclick="auth('login')">Entrar</button><button class="btn secondary" onclick="auth('signup')">Criar conta</button></div>`}</div>
 <div class="card"><div class="title">Conexão</div><div class="meta">Use as credenciais do seu projeto Supabase.</div><input id="surl" type="text" placeholder="Supabase URL" value="${config.url}"><input id="skey" type="text" placeholder="Supabase Publishable key" value="${config.key}"><button class="btn" onclick="saveConfig()">Salvar conexão</button></div>
-<div class="card"><div class="title">Plano de treino</div><div class="meta">Edite exercícios nas abas Treino, ou restaure o padrão original aqui.</div><button class="setting" onclick="resetWorkouts()">🔄 Restaurar treinos A/B/C padrão</button></div>
+<div class="card"><div class="title">Plano de treino</div><div class="meta">Edite exercícios em 🧑‍🏫 Personal, ou restaure o padrão original aqui.</div><button class="setting" onclick="resetWorkouts()">🔄 Restaurar treinos A/B/C padrão</button></div>
 <div class="card"><div class="title">Dados locais</div><div class="meta">${data.length} registros neste aparelho.</div><button class="setting" onclick="deleteLocal()">🗑️ Apagar dados locais</button></div>`}
 function deleteLocal(){if(confirm("Apagar os dados locais deste aparelho?")){data=[];localStorage.removeItem("meuTreinoV2");render()}}
-async function shareView(token){document.getElementById("top").innerHTML="";document.getElementById("footer").style.display="none";let app=document.getElementById("app");if(!sb)return app.innerHTML='<div class="notice">A conexão do aplicativo ainda não foi configurada.</div>';let t=await sb.from("share_tokens").select("user_id").eq("token",token).single();if(t.error)return app.innerHTML='<div class="notice">Link inválido ou revogado.</div>';let r=await sb.from("workouts").select("date,workout,exercise,sets").eq("user_id",t.data.user_id).order("date",{ascending:false});if(r.error)return app.innerHTML='<div class="notice">Não foi possível carregar a evolução.</div>';app.innerHTML='<div class="section-title">📊 Evolução compartilhada</div><div class="card"><div class="meta">Acesso somente leitura.</div></div>'+r.data.map(x=>`<div class="card"><div class="title">${x.exercise}</div><div class="meta">${new Date(x.date+"T12:00:00").toLocaleDateString("pt-BR")} · Treino ${x.workout}</div><div class="stat"><span>Carga / repetições</span><b>${x.sets[0].weight||"-"} kg × ${x.sets[0].reps}</b></div></div>`).join("")}
+
+// ===== Visão do personal via link compartilhado (sem login) =====
+function shareGo(t){shareSubTab=t;renderShareView()}
+async function shareView(token){
+ shareToken=token;
+ document.getElementById("footer").style.display="none";
+ document.getElementById("top").innerHTML="";
+ document.getElementById("app").innerHTML='<div class="empty">Carregando...</div>';
+ if(!sb){document.getElementById("app").innerHTML='<div class="notice">A conexão do aplicativo ainda não foi configurada.</div>';return}
+ let r=await sb.rpc("get_shared_data",{p_token:token});
+ let row=Array.isArray(r.data)?r.data[0]:r.data;
+ if(r.error||!row){document.getElementById("app").innerHTML='<div class="notice">Link inválido, revogado, ou o banco ainda não tem as funções de compartilhamento (veja schema.sql).</div>';return}
+ sharedWorkouts=(row.workouts&&Object.keys(row.workouts).length)?row.workouts:JSON.parse(JSON.stringify(DEFAULT_WORKOUTS));
+ sharedDayOrder=(row.day_order&&row.day_order.length)?row.day_order:Object.keys(sharedWorkouts);
+ sharedHistory=row.history||[];
+ renderShareView();
+}
+function renderShareView(){
+ document.getElementById("top").innerHTML=`<div class="tabs">
+ <button class="tab ${shareSubTab==="evolucao"?"active":""}" onclick="shareGo('evolucao')">📊 Evolução</button>
+ <button class="tab ${shareSubTab==="editar"?"active":""}" onclick="shareGo('editar')">🧑‍🏫 Editar treinos</button></div>`;
+ let app=document.getElementById("app");
+ if(shareSubTab==="editar")renderShareEditor(app);else renderShareEvolution(app);
+}
+function renderShareEvolution(a){
+ if(!sharedHistory.length)return a.innerHTML='<div class="section-title">📊 Evolução compartilhada</div><div class="empty">Ainda não há treinos registrados.</div>';
+ a.innerHTML='<div class="section-title">📊 Evolução compartilhada</div><div class="card"><div class="meta">Acesso de leitura à evolução.</div></div>'+sharedHistory.map(x=>`<div class="card"><div class="title">${x.exercise}</div><div class="meta">${new Date(x.date+"T12:00:00").toLocaleDateString("pt-BR")} · Treino ${x.workout}</div><div class="stat"><span>Carga / repetições</span><b>${(x.sets&&x.sets[0]&&x.sets[0].weight)||"-"} kg × ${x.sets&&x.sets[0]?x.sets[0].reps:"-"}</b></div></div>`).join("");
+}
+function renderShareEditor(a){
+ let h='<div class="section-title">🧑‍🏫 Editor do personal</div><div class="notice">Alterações aqui só são enviadas ao aluno quando você tocar em "Salvar alterações".</div>';
+ sharedDayOrder.forEach(day=>{
+  let w=sharedWorkouts[day]||{name:"",ex:[]};
+  h+=`<div class="card"><div class="title" style="display:flex;justify-content:space-between;align-items:center">Treino ${day}${w.name?" — "+w.name:""}<button class="btn secondary" style="padding:5px 9px;font-size:12px" onclick="sharedRenameDay('${day}')">✎ nome</button></div>`;
+  if(!w.ex.length)h+='<div class="meta">Nenhum exercício ainda.</div>';
+  w.ex.forEach((e,i)=>{h+=`<div class="row" style="grid-template-columns:1fr auto auto"><div>${e[0]} <span class="muted">(${e[1]}x${e[2]})</span></div><button class="btn secondary" style="padding:5px 9px;font-size:12px" onclick="sharedEditExercise('${day}',${i})">✎</button><button class="btn red" style="padding:5px 9px;font-size:12px" onclick="sharedRemoveExercise('${day}',${i})">🗑</button></div>`});
+  h+=`<div class="actions"><button class="btn secondary" onclick="sharedAddExercise('${day}')">+ Exercício</button><button class="btn red" onclick="sharedRemoveDay('${day}')">🗑 Remover treino</button></div></div>`;
+ });
+ h+='<div class="card"><button class="setting" onclick="sharedAddDay()">+ Adicionar novo treino</button></div>';
+ h+='<div class="card"><button class="btn green" style="width:100%" onclick="sharedSave()">💾 Salvar alterações</button></div>';
+ a.innerHTML=h;
+}
+function sharedEditExercise(day,i){let e=sharedWorkouts[day].ex[i];let name=prompt("Nome do exercício:",e[0]);if(name===null)return;name=name.trim();if(!name)return;let sets=prompt("Número de séries:",e[1]);if(sets===null)return;let reps=prompt(e[0].toLowerCase().includes("prancha")?"Segundos:":"Repetições:",e[2]);if(reps===null)return;sharedWorkouts[day].ex[i]=[name,Number(sets)||e[1],Number(reps)||e[2]];renderShareView()}
+function sharedRemoveExercise(day,i){if(!confirm("Remover \""+sharedWorkouts[day].ex[i][0]+"\" do Treino "+day+"?"))return;sharedWorkouts[day].ex.splice(i,1);renderShareView()}
+function sharedAddExercise(day){let name=prompt("Nome do novo exercício:");if(!name)return;let sets=Number(prompt("Número de séries:","3"))||3;let reps=Number(prompt("Repetições (ou segundos):","10"))||10;sharedWorkouts[day].ex.push([name.trim(),sets,reps]);renderShareView()}
+function sharedRenameDay(day){let name=prompt("Nome do Treino "+day+":",sharedWorkouts[day].name||"");if(name===null)return;sharedWorkouts[day].name=name.trim();renderShareView()}
+function sharedRemoveDay(day){if(sharedDayOrder.length<=1)return alert("É preciso manter ao menos um treino.");if(!confirm("Remover o Treino "+day+" inteiro?"))return;delete sharedWorkouts[day];sharedDayOrder=sharedDayOrder.filter(d=>d!==day);renderShareView()}
+function sharedAddDay(){let letter=prompt("Identificador do novo treino (ex: D):","");if(!letter)return;letter=letter.trim().toUpperCase();if(sharedWorkouts[letter])return alert("Já existe um treino com esse identificador.");let name=prompt("Nome do treino (opcional):","")||"";sharedWorkouts[letter]={name,ex:[]};sharedDayOrder.push(letter);renderShareView()}
+async function sharedSave(){let r=await sb.rpc("update_shared_plan",{p_token:shareToken,p_workouts:sharedWorkouts,p_day_order:sharedDayOrder});if(r.error)return alert("Não foi possível salvar: "+r.error.message);alert("Treino atualizado! O aluno verá a mudança na próxima vez que abrir o app.")}
+
 async function start(){
   let params=new URLSearchParams(location.search),token=params.get("share");
   render();
@@ -100,13 +201,26 @@ async function start(){
     try{
       if(window.supabase){
         sb=window.supabase.createClient(config.url,config.key);
-        await refreshUser();
-        render();
+        if(!token){
+          await refreshUser();
+          await syncPlanFromRemote();
+          render();
+        }
       }
     }catch(e){ console.error(e); }
   }
   if(token && sb) shareView(token);
 }
-if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",start);
-else start();
+try{
+  if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",start);
+  else start();
+}catch(e){
+  document.getElementById("app").innerHTML='<div style="padding:20px;color:#b91c1c;font-family:monospace;font-size:13px;white-space:pre-wrap;">Erro ao iniciar: '+(e&&e.message?e.message:e)+'</div>';
+}
+window.addEventListener("error",function(e){
+  let box=document.createElement("div");
+  box.style.cssText="padding:14px 20px;color:#b91c1c;font-family:monospace;font-size:12px;white-space:pre-wrap;border-top:1px solid #e5e7eb;";
+  box.textContent="Erro: "+e.message;
+  document.body.appendChild(box);
+});
 </script></body></html>
