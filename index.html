@@ -208,7 +208,7 @@ a.innerHTML=h;
 
 async function compartilhar(a){if(!sb||!user)return a.innerHTML=`<div class="notice">Para gerar um acesso, configure o banco e entre na sua conta.</div><div class="card"><div class="title">🔗 Compartilhar</div><div class="meta">O link permite ver a evolução e, se você quiser, editar o plano de treino — ótimo para o seu personal.</div></div>`;
 a.innerHTML=`<div class="section-title">🔗 Compartilhar</div><div class="card"><div class="title">Criar acesso do personal</div><div class="meta">Gere um link para o seu personal: ele consegue ver sua evolução e editar os treinos (trocar exercícios, adicionar novos dias), sem precisar de conta.</div><button class="btn green" onclick="createShare()">Gerar link</button></div><div id="shareResult"></div>`}
-async function createShare(){let token=crypto.randomUUID();let r=await sb.from("share_tokens").insert({user_id:user.id,token}).select().single();if(r.error)return alert(r.error.message);let url=location.origin+location.pathname+"?share="+token;document.getElementById("shareResult").innerHTML=`<div class="card"><div class="title">Link criado</div><input type="text" value="${url}" readonly><button class="btn" onclick="navigator.clipboard.writeText('${url}');alert('Link copiado!')">Copiar link</button></div>`}
+async function createShare(){let token=crypto.randomUUID();let r=await sb.from("share_tokens").insert({user_id:user.id,token}).select().single();if(r.error)return alert(r.error.message);let url=location.origin+location.pathname+"?share="+token+"&url="+encodeURIComponent(config.url)+"&key="+encodeURIComponent(config.key);document.getElementById("shareResult").innerHTML=`<div class="card"><div class="title">Link criado</div><div class="meta">Quem abrir não precisa de conta nem de senha — o link já leva tudo que é necessário.</div><input type="text" value="${url}" readonly><button class="btn" onclick="navigator.clipboard.writeText('${url}');alert('Link copiado!')">Copiar link</button></div>`}
 
 async function configPage(a){a.innerHTML=`<div class="section-title">⚙️ Configurações</div>
 <div class="card"><div class="title">Conta</div>${user?`<div class="ok">Conectado: ${user.email}</div><button class="setting" onclick="sb.auth.signOut().then(()=>{user=null;render()})">Sair</button>`:`<div class="meta">Entre para sincronizar seus treinos.</div><input id="email" type="email" placeholder="E-mail"><input id="password" type="password" placeholder="Senha"><div class="actions"><button class="btn" onclick="auth('login')">Entrar</button><button class="btn secondary" onclick="auth('signup')">Criar conta</button></div>`}</div>
@@ -276,11 +276,13 @@ async function sharedSave(){let r=await sb.rpc("update_shared_plan",{p_token:sha
 
 async function start(){
   let params=new URLSearchParams(location.search),token=params.get("share");
+  let shareUrl=params.get("url"),shareKey=params.get("key");
   render();
-  if(config.url&&config.key){
+  let effectiveUrl=config.url||shareUrl,effectiveKey=config.key||shareKey;
+  if(effectiveUrl&&effectiveKey){
     try{
       if(window.supabase){
-        sb=window.supabase.createClient(config.url,config.key);
+        sb=window.supabase.createClient(effectiveUrl,effectiveKey);
         if(!token){
           await refreshUser();
           await syncPlanFromRemote();
@@ -291,6 +293,7 @@ async function start(){
     }catch(e){ console.error(e); }
   }
   if(token && sb) shareView(token);
+  else if(token) document.getElementById("app").innerHTML='<div class="notice">Este link parece incompleto (faltam dados de conexão). Peça um link novo em 🔗 Compartilhar.</div>';
 }
 try{
   if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",start);
