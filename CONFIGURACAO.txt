@@ -13,12 +13,20 @@ Nunca coloque uma Secret key no aplicativo.
 ===========================================
 NOVO: Espaço do personal (editar treinos)
 ===========================================
-1. Abra o schema.sql e copie o CONTEÚDO INTEIRO do arquivo (agora é seguro
-   rodar tudo de novo, mesmo que você já tenha criado as tabelas antes —
-   nada é duplicado nem apagado).
-2. No Supabase: Project > SQL Editor > New query, cole e rode ("Run").
-3. No app, aba 🧑‍🏫 Personal: edite exercícios, renomeie treinos, adicione
+1. No app, aba 🧑‍🏫 Personal: edite exercícios, renomeie treinos, adicione
    novos treinos (D, E...) ou remova algum.
-4. Aba 🔗 Compartilhar: gere o link e mande pro seu personal. Ele abre o link,
+2. Aba 🔗 Compartilhar: gere o link e mande pro seu personal. Ele abre o link,
    toca em "🧑‍🏫 Editar treinos" e consegue mudar o plano sem precisar de conta.
    As mudanças dele chegam no seu app na próxima vez que você abrir.
+
+===========================================
+NOVO: ícone, histórico por dia, edição e calendário
+===========================================
+1. Rode o schema.sql inteiro de novo no Supabase (é seguro, nada é duplicado).
+2. Ícone: se você já tinha adicionado o app à Tela de Início, REMOVA o ícone
+   antigo (toque e segure > Remover App) e adicione de novo pelo Safari,
+   assim ele pega o ícone novo (o antigo fica "preso" em cache no iOS).
+3. Histórico agora é por dia (ex: "Segunda-feira · Treino A"), toque pra
+   abrir e ver/editar/apagar cada exercício daquele dia.
+4. Início agora tem um calendário do mês com os dias treinados destacados;
+   toque num dia destacado pra ver o que foi feito.
