@@ -42,6 +42,7 @@ let config=JSON.parse(localStorage.getItem("meuTreinoConfig")||'{"url":"","key":
 let sb=null, user=null;
 let calMonth=new Date();
 let openHistDates=new Set();
+let treinoDate=new Date().toISOString().slice(0,10);
 
 // migração: garante um id local (cid) em registros salvos antes desta versão
 (function migrateCids(){
@@ -85,6 +86,27 @@ function resetWorkouts(){if(!confirm("Restaurar os treinos A/B/C para o padrão 
 
 function init(){if(config.url&&config.key){try{sb=window.supabase.createClient(config.url,config.key)}catch(e){sb=null}};render()}
 async function refreshUser(){if(!sb)return;let r=await sb.auth.getUser();user=r.data.user||null}
+async function syncHistoryWithRemote(){
+ if(!sb||!user)return;
+ // sobe qualquer registro local que ainda não tenha sido sincronizado
+ let toUpload=data.filter(x=>!x.synced);
+ if(toUpload.length){
+  let r=await sb.from("workouts").upsert(toUpload.map(x=>({user_id:user.id,date:x.date,workout:x.workout,exercise:x.exercise,sets:x.sets,client_id:x.cid})),{onConflict:"user_id,client_id",ignoreDuplicates:true});
+  if(!r.error)toUpload.forEach(x=>x.synced=true);
+ }
+ // baixa o que existe na nuvem e mescla (por client_id) sem apagar nada local
+ let r2=await sb.from("workouts").select("date,workout,exercise,sets,client_id").eq("user_id",user.id);
+ if(!r2.error&&r2.data){
+  let existing=new Set(data.map(x=>x.cid));
+  r2.data.forEach(row=>{
+   if(row.client_id&&!existing.has(row.client_id)){
+    data.push({date:row.date,workout:row.workout,exercise:row.exercise,sets:row.sets,cid:row.client_id,synced:true});
+    existing.add(row.client_id);
+   }
+  });
+ }
+ localStorage.setItem("meuTreinoV2",JSON.stringify(data));
+}
 async function auth(mode){
  if(!sb)return alert("Configure a conexão do banco em Configurações primeiro.");
  const email=document.getElementById("email").value.trim(),password=document.getElementById("password").value;
@@ -93,6 +115,7 @@ async function auth(mode){
  if(r.error)return alert(r.error.message);
  await refreshUser();
  await syncPlanFromRemote();
+ await syncHistoryWithRemote();
  render();
 }
 function saveConfig(){
@@ -135,8 +158,13 @@ ${renderCalendar()}
 <div class="grid"><div class="stat"><span class="muted">Dias de treino</span><b>${new Set(data.map(x=>x.date)).size}</b></div><div class="stat"><span class="muted">Exercícios</span><b>${new Set(data.map(x=>x.exercise)).size}</b></div></div>
 <div class="card"><div class="title">Começar</div><div class="actions"><button class="btn" onclick="go('treino')">Registrar treino</button><button class="btn secondary" onclick="go('evolucao')">Ver evolução</button></div></div>`}
 function lastFor(ex){let r=data.filter(x=>x.exercise===ex);return r.length?r[r.length-1]:null}
+function setTreinoDate(v){treinoDate=v;render()}
+function treinoDateOffset(days){let d=new Date(treinoDate+"T12:00:00");d.setDate(d.getDate()+days);treinoDate=d.toISOString().slice(0,10);render()}
 function treino(a){let w=workouts[current];if(!w){current=dayOrder[0];w=workouts[current]}
-let h=`<div class="tabs">${dayOrder.map(d=>`<button class="tab ${current===d?"active":""}" onclick="current='${d}';render()">${d}</button>`).join("")}</div><div class="section-title">Treino ${current}${w.name?" — "+w.name:""}</div>`;
+let todayStr=new Date().toISOString().slice(0,10);
+let dateLabel=treinoDate===todayStr?"Hoje":capitalize(new Date(treinoDate+"T12:00:00").toLocaleDateString("pt-BR",{weekday:"short",day:"2-digit",month:"short"}));
+let h=`<div class="card" style="display:flex;align-items:center;gap:8px;justify-content:space-between"><div><div class="meta" style="margin:0">Registrando para</div><div class="title" style="font-size:15px">${dateLabel}</div></div><div style="display:flex;gap:6px;align-items:center"><button class="btn secondary" style="padding:8px 10px" onclick="treinoDateOffset(-1)">‹</button><input type="date" value="${treinoDate}" max="${todayStr}" onchange="setTreinoDate(this.value)" style="border:1px solid var(--line);border-radius:10px;padding:8px"><button class="btn secondary" style="padding:8px 10px" onclick="treinoDateOffset(1)" ${treinoDate>=todayStr?"disabled":""}>›</button></div></div>
+<div class="tabs">${dayOrder.map(d=>`<button class="tab ${current===d?"active":""}" onclick="current='${d}';render()">${d}</button>`).join("")}</div><div class="section-title">Treino ${current}${w.name?" — "+w.name:""}</div>`;
 if(!w.ex.length)h+='<div class="empty">Nenhum exercício neste treino ainda. Adicione abaixo ou edite em 🧑‍🏫 Personal.</div>';
 w.ex.forEach((e,i)=>{let last=lastFor(e[0]);h+=`<div class="card"><div class="title" style="display:flex;justify-content:space-between;align-items:center">${e[0]}<button class="btn secondary" style="padding:5px 9px;font-size:12px;font-weight:700" onclick="editExercise('${current}',${i})">✎ trocar</button></div><div class="meta">Meta: ${e[1]} × ${e[2]}${last?" · Último: "+last.sets.map(s=>s.weight+" kg × "+s.reps).join(" / "):""}</div>`;
 for(let s=0;s<e[1];s++)h+=`<div class="row"><div class="series">${s+1}</div><input inputmode="decimal" placeholder="kg" data-ex="${i}" data-s="${s}" data-k="weight"><input inputmode="numeric" placeholder="${e[0].toLowerCase().includes("prancha")?"segundos":"reps"}" data-ex="${i}" data-s="${s}" data-k="reps"></div>`;
@@ -144,8 +172,8 @@ h+=`<div class="actions"><button class="btn secondary" onclick="copyLast(${i})">
 h+=`<div class="card"><button class="setting" onclick="addExercise('${current}')">+ Adicionar exercício ao Treino ${current}</button></div>`;
 a.innerHTML=h}
 function collect(){let o={};document.querySelectorAll("[data-ex]").forEach(el=>{let i=el.dataset.ex,s=el.dataset.s,k=el.dataset.k;o[i]??=[];o[i][s]??={weight:"",reps:""};o[i][s][k]=el.value});return o}
-async function saveToday(){let sets=collect(),date=new Date().toISOString().slice(0,10),rows=[];Object.entries(sets).forEach(([i,arr])=>arr.forEach(s=>{if(s.weight||s.reps)rows.push({date,workout:current,exercise:workouts[current].ex[i][0],sets:[s],cid:crypto.randomUUID()})}));if(!rows.length)return alert("Preencha pelo menos uma série.");
-data.push(...rows);localStorage.setItem("meuTreinoV2",JSON.stringify(data));if(sb&&user){let r=await sb.from("workouts").insert(rows.map(x=>({user_id:user.id,date:x.date,workout:x.workout,exercise:x.exercise,sets:x.sets,client_id:x.cid})));if(r.error)alert("Salvo no aparelho, mas não sincronizado: "+r.error.message);else alert("Treino salvo e sincronizado!")}else alert("Treino salvo neste aparelho.");render()}
+async function saveToday(){let sets=collect(),date=treinoDate,rows=[];Object.entries(sets).forEach(([i,arr])=>arr.forEach(s=>{if(s.weight||s.reps)rows.push({date,workout:current,exercise:workouts[current].ex[i][0],sets:[s],cid:crypto.randomUUID()})}));if(!rows.length)return alert("Preencha pelo menos uma série.");
+data.push(...rows);localStorage.setItem("meuTreinoV2",JSON.stringify(data));if(sb&&user){let r=await sb.from("workouts").insert(rows.map(x=>({user_id:user.id,date:x.date,workout:x.workout,exercise:x.exercise,sets:x.sets,client_id:x.cid})));if(r.error)alert("Salvo no aparelho, mas não sincronizado: "+r.error.message);else{rows.forEach(x=>x.synced=true);localStorage.setItem("meuTreinoV2",JSON.stringify(data));alert("Treino salvo e sincronizado!")}}else alert("Treino salvo neste aparelho.");treinoDate=new Date().toISOString().slice(0,10);render()}
 function copyLast(i){let l=lastFor(workouts[current].ex[i][0]);if(!l)return alert("Ainda não há histórico.");l.sets.forEach((s,n)=>{let w=document.querySelector(`[data-ex="${i}"][data-s="${n}"][data-k="weight"]`),r=document.querySelector(`[data-ex="${i}"][data-s="${n}"][data-k="reps"]`);if(w)w.value=s.weight;if(r)r.value=s.reps})}
 function toggleHistDate(d){if(openHistDates.has(d))openHistDates.delete(d);else openHistDates.add(d);historico(document.getElementById("app"))}
 function historico(a){if(!data.length)return a.innerHTML='<div class="empty">Nenhum treino salvo.</div>';
@@ -186,8 +214,17 @@ async function configPage(a){a.innerHTML=`<div class="section-title">⚙️ Conf
 <div class="card"><div class="title">Conta</div>${user?`<div class="ok">Conectado: ${user.email}</div><button class="setting" onclick="sb.auth.signOut().then(()=>{user=null;render()})">Sair</button>`:`<div class="meta">Entre para sincronizar seus treinos.</div><input id="email" type="email" placeholder="E-mail"><input id="password" type="password" placeholder="Senha"><div class="actions"><button class="btn" onclick="auth('login')">Entrar</button><button class="btn secondary" onclick="auth('signup')">Criar conta</button></div>`}</div>
 <div class="card"><div class="title">Conexão</div><div class="meta">Use as credenciais do seu projeto Supabase.</div><input id="surl" type="text" placeholder="Supabase URL" value="${config.url}"><input id="skey" type="text" placeholder="Supabase Publishable key" value="${config.key}"><button class="btn" onclick="saveConfig()">Salvar conexão</button></div>
 <div class="card"><div class="title">Plano de treino</div><div class="meta">Edite exercícios em 🧑‍🏫 Personal, ou restaure o padrão original aqui.</div><button class="setting" onclick="resetWorkouts()">🔄 Restaurar treinos A/B/C padrão</button></div>
-<div class="card"><div class="title">Dados locais</div><div class="meta">${data.length} registros neste aparelho.</div><button class="setting" onclick="deleteLocal()">🗑️ Apagar dados locais</button></div>`}
+<div class="card"><div class="title">Dados locais</div><div class="meta">${data.length} registros neste aparelho.</div><button class="setting" onclick="deleteLocal()">🗑️ Apagar dados locais</button></div>
+<div class="card"><div class="title">📦 Mover dados entre arquivo/aparelho</div><div class="meta">Se você abriu uma versão nova do app e o histórico sumiu, ele provavelmente ainda está na versão antiga. Abra a versão antiga, toque em Exportar, copie o texto, volte aqui e Importe.</div><button class="setting" onclick="exportData()">⬆️ Exportar dados deste arquivo</button><div id="exportBox"></div><button class="setting" onclick="importData()">⬇️ Importar dados de outro arquivo</button><div id="importBox"></div></div>`}
 function deleteLocal(){if(confirm("Apagar os dados locais deste aparelho?")){data=[];localStorage.removeItem("meuTreinoV2");render()}}
+function exportData(){let payload=JSON.stringify({data,workouts,dayOrder});let box=document.getElementById("exportBox");if(box)box.innerHTML=`<div class="meta" style="margin-top:10px">Copie todo o texto abaixo e cole no app novo, em "Importar dados":</div><textarea readonly style="width:100%;height:140px;margin-top:8px;padding:10px;border:1px solid var(--line);border-radius:10px;font-family:monospace;font-size:11px" onclick="this.select()">${payload}</textarea><button class="btn" style="margin-top:8px" onclick="navigator.clipboard.writeText(document.querySelector('#exportBox textarea').value).then(()=>alert('Copiado!'))">Copiar</button>`}
+function importData(){let box=document.getElementById("importBox");if(box.querySelector("textarea")){let txt=box.querySelector("textarea").value.trim();if(!txt)return;let parsed;try{parsed=JSON.parse(txt)}catch(e){return alert("Esse texto não parece um dado válido exportado do app.")}
+ if(!Array.isArray(parsed.data))return alert("Formato inválido.");
+ let merged=[...data];let existing=new Set(data.map(x=>x.cid));parsed.data.forEach(x=>{if(!x.cid)x.cid=crypto.randomUUID();if(!existing.has(x.cid)){merged.push(x);existing.add(x.cid)}});
+ data=merged;localStorage.setItem("meuTreinoV2",JSON.stringify(data));
+ if(parsed.workouts){workouts=parsed.workouts;dayOrder=parsed.dayOrder&&parsed.dayOrder.length?parsed.dayOrder:Object.keys(workouts);persistPlan()}
+ alert("Dados importados! "+parsed.data.length+" registros verificados.");render()
+}else{box.innerHTML=`<textarea placeholder="Cole aqui o texto exportado do outro aparelho/arquivo" style="width:100%;height:140px;margin-top:8px;padding:10px;border:1px solid var(--line);border-radius:10px;font-family:monospace;font-size:11px"></textarea><button class="btn green" style="margin-top:8px" onclick="importData()">Confirmar importação</button>`}}
 
 // ===== Visão do personal via link compartilhado (sem login) =====
 function shareGo(t){shareSubTab=t;renderShareView()}
@@ -247,6 +284,7 @@ async function start(){
         if(!token){
           await refreshUser();
           await syncPlanFromRemote();
+          await syncHistoryWithRemote();
           render();
         }
       }

@@ -26,7 +26,8 @@ for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
 -- V2.3: permite editar/apagar um registro específico do histórico a partir do app,
 -- usando um id gerado no próprio aparelho (client_id) para identificar a linha certa.
 alter table public.workouts add column if not exists client_id text;
-create index if not exists workouts_client_id_idx on public.workouts (user_id, client_id);
+drop index if exists workouts_client_id_idx;
+create unique index if not exists workouts_user_client_unique on public.workouts (user_id, client_id) where client_id is not null;
 
 drop policy if exists "owner can manage share tokens" on public.share_tokens;
 create policy "owner can manage share tokens" on public.share_tokens
